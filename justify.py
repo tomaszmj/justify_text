@@ -1,6 +1,7 @@
 #!/usr/bin/python
 import sys
 import logging
+import time
 from typing import List
 
 
@@ -27,7 +28,7 @@ def main():
         text = justify_text(words, line_length)
     except BaseException as e:
         logging.error(f"failed to justify text: {e}")
-        return
+        raise
     print("\n".join(text))
     logging.info("text justified successfully")
 
@@ -39,17 +40,22 @@ def main():
 # If length of any word is longer than
 # line_length, it will raise an exception.
 def justify_text(words: List[str], line_length: int) -> List[str]:
-    return justify_text_greedy(words, line_length)
+    if len(words) == 0:
+        return []
+    for word in words:
+        if len(word) > line_length:
+            raise BaseException(f"word {word} is too long for line length {line_length}")
+    return justify_text_bruteforce(words, line_length)
+    # return justify_text_greedy(words, line_length)
 
 
 def justify_text_greedy(words: List[str], line_length: int) -> List[str]:
+    t0 = time.time()
     result = []
     words_tmp = []
     current_line_min_length = 0
     badness = 0
     for word in words:
-        if len(word) > line_length:
-            raise BaseException(f"word {word} is too long for line length {line_length}")
         new_line_min_length = current_line_min_length + len(word) 
         if len(words_tmp) > 0:
             new_line_min_length += 1
@@ -64,7 +70,47 @@ def justify_text_greedy(words: List[str], line_length: int) -> List[str]:
     if len(words_tmp) > 0:
         badness += get_badness(len(words_tmp), line_length, current_line_min_length)
         result.append(words_to_line(words_tmp, line_length, current_line_min_length))
-    logging.info(f"justify_text_greedy badness: {badness}")
+    td = time.time() - t0
+    logging.info(f"justify_text_greedy badness: {badness}, execution time {td}")
+    return result
+
+
+def justify_text_bruteforce(words: List[str], line_length: int) -> List[str]:
+    t0 = time.time()
+    best_subset = 0
+    best_badness = None
+    for subset in range(0, 2**(len(words) - 1)):
+        subset = subset | (1 << len(words)-1)  # each subset must have 1 on the most significant bit
+        begin = 0
+        badness = 0
+        for i in range(len(words)):
+            bitmask = 1 << i
+            if not subset & bitmask:
+                continue
+            words_tmp = words[begin:i+1]
+            min_length = sum(len(w) for w in words_tmp) + len(words_tmp) - 1
+            if min_length > line_length or len(words_tmp) == 0:
+                badness = None
+                break
+            badness += get_badness(len(words_tmp), line_length, min_length)
+            begin = i + 1
+        if badness is not None and (best_badness is None or badness < best_badness):
+            best_subset = subset
+            best_badness = badness
+    if best_badness is None:  # sanity check
+        raise BaseException("justify_text_bruteforce failed to find anything")
+    result = []
+    begin = 0
+    for i in range(len(words)):
+        bitmask = 1 << i
+        if not best_subset & bitmask:
+            continue
+        words_tmp = words[begin:i+1]
+        min_length = sum(len(w) for w in words_tmp) + len(words_tmp) - 1
+        result.append(words_to_line(words_tmp, line_length, min_length))
+        begin = i + 1
+    td = time.time() - t0
+    logging.info(f"justify_text_bruteforce badness: {best_badness}, execution time {td}")
     return result
 
 
@@ -92,7 +138,7 @@ def words_to_line(words: List[str], line_length: int, current_line_min_length: i
 # but it could be calculated in some other way as well.
 def get_badness(words_in_line_count: int, line_length: int, current_line_min_length: int) -> int:
     if words_in_line_count == 0:
-        raise BaseException("get_badness called with empty list of words")
+        return None
     additional_spaces = line_length - current_line_min_length
     result = 0
     if words_in_line_count == 1:
