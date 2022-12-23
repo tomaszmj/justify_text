@@ -6,7 +6,7 @@ from typing import List
 
 
 def main():
-    logging.basicConfig(format='%(levelname)s: %(message)s', level=logging.DEBUG)
+    logging.basicConfig(format='%(levelname)s: %(message)s', level=logging.INFO)
     if len(sys.argv) != 2:
         logging.error("expected 1 argument - line length (text will be read from stdin)")
         return
@@ -122,27 +122,31 @@ def justify_text_dp(words: List[str], line_length: int) -> List[str]:
 
 def justify_text_dp_iteration(words: List[str], line_length: int, begin: int, state: dict) -> int:
     logging.debug(f"justify_text_dp_iteration({len(words)} words, {line_length}, {begin}, state) ...")
-    if begin == len(words) - 1:
+    if begin == len(words):
         logging.debug(f"justify_text_dp_iteration({len(words)} words, {line_length}, {begin}, state) -> 0")
         return 0
     if begin in state:
         logging.debug(f"justify_text_dp_iteration({len(words)} words, {line_length}, {begin}, state) -> {state[begin]}")
         return state[begin]
-    current_line_min_length = len(words[begin])
+    current_line_min_length = 0
     min_badness = None
     min_badness_end = -1
-    for end in range(begin + 1, len(words)):
-        badness1 = get_badness(end - begin, line_length, current_line_min_length)
-        badness2 = justify_text_dp_iteration(words, line_length, end, state)
+    for end in range(begin, len(words)):
+        current_line_min_length += len(words[end])
+        if end - begin > 0:
+            current_line_min_length += 1  # space between words
+        if current_line_min_length > line_length:
+            logging.debug(f"{current_line_min_length} > {line_length}, begin {begin}, end {end}")
+            break
+        logging.debug(f"justify_text_dp_iteration calls get_badness, begin {begin}, end {end}")
+        badness1 = get_badness(end - begin + 1, line_length, current_line_min_length)
+        badness2 = justify_text_dp_iteration(words, line_length, end + 1, state)
         badness = badness1 + badness2
         if min_badness is None or badness < min_badness:
             min_badness = badness
             min_badness_end = end
-        current_line_min_length += len(words[end]) + 1
-        if current_line_min_length > line_length:
-            break
     state[begin] = min_badness
-    logging.debug(f"justify_text_dp_iteration({len(words)} words, {line_length}, {begin}, state) -> {state[begin]}")
+    logging.debug(f"justify_text_dp_iteration({len(words)} words, {line_length}, {begin}, state) -> {min_badness}")
     return min_badness
 
 
