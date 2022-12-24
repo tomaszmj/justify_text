@@ -6,7 +6,7 @@ from typing import List
 
 
 def main():
-    logging.basicConfig(format='%(levelname)s: %(message)s', level=logging.DEBUG)
+    logging.basicConfig(format='%(levelname)s: %(message)s', level=logging.INFO)
     if len(sys.argv) != 2:
         logging.error("expected 1 argument - line length (text will be read from stdin)")
         return
@@ -45,8 +45,11 @@ def justify_text(words: List[str], line_length: int) -> List[str]:
     for word in words:
         if len(word) > line_length:
             raise BaseException(f"word {word} is too long for line length {line_length}")
-    return justify_text_dp(words, line_length)
-    # return justify_text_bruteforce(words, line_length)
+    dp = justify_text_dp(words, line_length)
+    bf = justify_text_bruteforce(words, line_length)
+    if '\n'.join(dp) != '\n'.join(bf):
+        logging.error("dynamic programming and bruteforce returned other solutions")
+    return dp
     # return justify_text_greedy(words, line_length)
 
 
@@ -116,8 +119,9 @@ def justify_text_bruteforce(words: List[str], line_length: int) -> List[str]:
 
 
 def justify_text_dp(words: List[str], line_length: int) -> List[str]:
+    t0 = time.time()
     state, ends = {}, {}
-    print(justify_text_dp_iteration(words, line_length, 0, state, ends))
+    best_badness = justify_text_dp_iteration(words, line_length, 0, state, ends)
     begin = 0
     result = []
     while begin in ends:
@@ -127,6 +131,8 @@ def justify_text_dp(words: List[str], line_length: int) -> List[str]:
         min_length = sum(len(w) for w in words_tmp) + len(words_tmp) - 1
         result.append(words_to_line(words_tmp, line_length, min_length))
         begin = end + 1
+    td = time.time() - t0
+    logging.info(f"justify_text_dp badness: {best_badness}, execution time {td}")
     return result
 
 
