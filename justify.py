@@ -23,7 +23,7 @@ def main():
             words_in_line = line.split()
             for word in words_in_line:
                 if len(word) > line_length:
-                    logging.error(f"text cannot be jutified - word {word} is too long for line length {line_length}")
+                    logging.error(f"text cannot be justified - word {word} is too long for line length {line_length}")
                     return
             words.extend(words_in_line)
     except KeyboardInterrupt:  # text should end with EOF, but we also allow ctrl+C
@@ -53,6 +53,10 @@ def justify_text(words: List[str], line_length: int) -> List[str]:
                 current_line_min_length += 1  # space between words
             if current_line_min_length > line_length:
                 break
+            # Min badness of current text split is sum of:
+            # - badness of the current line,
+            # - min badness of "recursive" calls for whole remaining text.
+            # Here instead of recursive calls we can just use DP table min_badness.
             badness = get_badness(end - begin + 1, line_length, current_line_min_length) + min_badness[end + 1]
             if min_badness[begin] == -1 or badness < min_badness[begin]:
                 min_badness[begin] = badness
