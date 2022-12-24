@@ -45,12 +45,7 @@ def justify_text(words: List[str], line_length: int) -> List[str]:
     for word in words:
         if len(word) > line_length:
             raise BaseException(f"word {word} is too long for line length {line_length}")
-    dp = justify_text_dp(words, line_length)
-    bf = justify_text_bruteforce(words, line_length)
-    if '\n'.join(dp) != '\n'.join(bf):
-        logging.error("dynamic programming and bruteforce returned other solutions")
-    return dp
-    # return justify_text_greedy(words, line_length)
+    return justify_text_dp(words, line_length)
 
 
 def justify_text_greedy(words: List[str], line_length: int) -> List[str]:
@@ -120,53 +115,34 @@ def justify_text_bruteforce(words: List[str], line_length: int) -> List[str]:
 
 def justify_text_dp(words: List[str], line_length: int) -> List[str]:
     t0 = time.time()
-    state, ends = {}, {}
-    best_badness = justify_text_dp_iteration(words, line_length, 0, state, ends)
+    min_badness = [-1] * len(words) + [0]  # + [0] to satisfy min_badness[end + 1] for end = len(words)-1
+    best_end = [len(words)-1] * len(words)
+    for begin in range(len(words)-1, -1, -1):
+        current_line_min_length = 0
+        for end in range(begin, len(words)):
+            current_line_min_length += len(words[end])
+            if end - begin > 0:
+                current_line_min_length += 1  # space between words
+            if current_line_min_length > line_length:
+                logging.debug(f"{current_line_min_length} > {line_length}, begin {begin}, end {end}")
+                break
+            logging.debug(f"justify_text_dp calls get_badness, begin {begin}, end {end}")
+            badness = get_badness(end - begin + 1, line_length, current_line_min_length) + min_badness[end + 1]
+            if min_badness[begin] == -1 or badness < min_badness[begin]:
+                min_badness[begin] = badness
+                best_end[begin] = end
     begin = 0
     result = []
-    while begin in ends:
-        end = ends[begin]
+    while begin < len(words):
+        end = best_end[begin]
         logging.debug(f"DP adding line {begin}:{end}")
         words_tmp = words[begin : end+1]
         min_length = sum(len(w) for w in words_tmp) + len(words_tmp) - 1
         result.append(words_to_line(words_tmp, line_length, min_length))
         begin = end + 1
     td = time.time() - t0
-    logging.info(f"justify_text_dp badness: {best_badness}, execution time {td}")
+    logging.info(f"justify_text_dp badness: {min_badness[0]}, execution time {td}")
     return result
-
-
-def justify_text_dp_iteration(words: List[str], line_length: int, begin: int, state: dict, ends: dict) -> int:
-    logging.debug(f"justify_text_dp_iteration({len(words)} words, {line_length}, {begin}, state) ...")
-    if begin == len(words):
-        logging.debug(f"justify_text_dp_iteration({len(words)} words, {line_length}, {begin}, state) -> 0")
-        return 0
-    if begin in state:
-        logging.debug(f"justify_text_dp_iteration({len(words)} words, {line_length}, {begin}, state) -> {state[begin]}")
-        return state[begin]
-    current_line_min_length = 0
-    min_badness = None
-    min_badness_end = -1
-    for end in range(begin, len(words)):
-        current_line_min_length += len(words[end])
-        if end - begin > 0:
-            current_line_min_length += 1  # space between words
-        if current_line_min_length > line_length:
-            logging.debug(f"{current_line_min_length} > {line_length}, begin {begin}, end {end}")
-            break
-        logging.debug(f"justify_text_dp_iteration calls get_badness, begin {begin}, end {end}")
-        badness1 = get_badness(end - begin + 1, line_length, current_line_min_length)
-        badness2 = justify_text_dp_iteration(words, line_length, end + 1, state, ends)
-        badness = badness1 + badness2
-        if min_badness is None or badness < min_badness:
-            min_badness = badness
-            min_badness_end = end
-    if min_badness is None:  # sanity check, should not happen
-        raise BaseException("justify_text_dp_iteration failed to find anything")
-    state[begin] = min_badness
-    ends[begin] = min_badness_end
-    logging.debug(f"justify_text_dp_iteration({len(words)} words, {line_length}, {begin}, state) -> {min_badness}")
-    return min_badness
 
 
 def words_to_line(words: List[str], line_length: int, current_line_min_length: int) -> str:
