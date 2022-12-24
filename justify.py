@@ -7,14 +7,17 @@ from typing import List
 
 def main():
     logging.basicConfig(format='%(levelname)s: %(message)s', level=logging.INFO)
-    if len(sys.argv) != 2:
-        logging.error("expected 1 argument - line length (text will be read from stdin)")
+    if len(sys.argv) not in [2, 3]:
+        logging.error(f"usage: {sys.argv[0]} <line length - required> <algorithm: dynamic / greedy / bruteforce (default dynamic)>")
         return
     try:
         line_length = int(sys.argv[1])
     except ValueError:
         logging.error(f"invalid line length format, expected integer, got {sys.argv[1]}")
         return
+    algorithm = "dynamic"
+    if len(sys.argv) == 3:
+        algorithm = sys.argv[2]
     words = []
     logging.info("reading text from stdin ...")
     try:
@@ -25,7 +28,7 @@ def main():
         logging.warning("KeyboardInterrupt received, reading text stopped (last line may be missing)")
     logging.info("text has been read")
     try:
-        text = justify_text(words, line_length)
+        text = justify_text(words, line_length, algorithm)
     except BaseException as e:
         logging.error(f"failed to justify text: {e}")
         raise
@@ -39,13 +42,24 @@ def main():
 # returns ["Hello!  Nice", "to meet you."].
 # If length of any word is longer than
 # line_length, it will raise an exception.
-def justify_text(words: List[str], line_length: int) -> List[str]:
+# Optional parameter algorithm (dynamic / greedy / bruteforce)
+# specifies algorithm to be used. By defult - dynamic,
+# which produces the optimal solution (unlike greedy)
+# in reasonable time (unlike bruteforce).
+def justify_text(words: List[str], line_length: int, algorithm="dynamic") -> List[str]:
+    justify_functions = {
+        "dynamic": justify_text_dp,
+        "greedy": justify_text_greedy,
+        "bruteforce": justify_text_bruteforce,
+    } 
+    if algorithm not in justify_functions:
+        raise BaseException(f"invalid algorithm parameter {algorithm}, expected dynamic / greedy / bruteforce (default dynamic)")
     if len(words) == 0:
         return []
     for word in words:
         if len(word) > line_length:
             raise BaseException(f"word {word} is too long for line length {line_length}")
-    return justify_text_dp(words, line_length)
+    return justify_functions[algorithm](words, line_length)
 
 
 def justify_text_greedy(words: List[str], line_length: int) -> List[str]:
@@ -75,6 +89,8 @@ def justify_text_greedy(words: List[str], line_length: int) -> List[str]:
 
 
 def justify_text_bruteforce(words: List[str], line_length: int) -> List[str]:
+    if len(words) > 20:
+        logging.warning(f"justify_text_bruteforce may take a lot of time for {len(words)} words")
     t0 = time.time()
     best_subset = 0
     best_badness = None
@@ -124,9 +140,7 @@ def justify_text_dp(words: List[str], line_length: int) -> List[str]:
             if end - begin > 0:
                 current_line_min_length += 1  # space between words
             if current_line_min_length > line_length:
-                logging.debug(f"{current_line_min_length} > {line_length}, begin {begin}, end {end}")
                 break
-            logging.debug(f"justify_text_dp calls get_badness, begin {begin}, end {end}")
             badness = get_badness(end - begin + 1, line_length, current_line_min_length) + min_badness[end + 1]
             if min_badness[begin] == -1 or badness < min_badness[begin]:
                 min_badness[begin] = badness
@@ -135,7 +149,6 @@ def justify_text_dp(words: List[str], line_length: int) -> List[str]:
     result = []
     while begin < len(words):
         end = best_end[begin]
-        logging.debug(f"DP adding line {begin}:{end}")
         words_tmp = words[begin : end+1]
         min_length = sum(len(w) for w in words_tmp) + len(words_tmp) - 1
         result.append(words_to_line(words_tmp, line_length, min_length))
@@ -178,7 +191,6 @@ def get_badness(words_in_line_count: int, line_length: int, current_line_min_len
         min_additional_spaces_per_w = additional_spaces // (words_in_line_count - 1)
         mod = additional_spaces % (words_in_line_count - 1)
         result = (min_additional_spaces_per_w + 1)**2 * mod + min_additional_spaces_per_w**2 * (words_in_line_count - 1 - mod)
-    logging.debug(f"get_badness({words_in_line_count}, {line_length}, {current_line_min_length}) -> {result}")
     return result
 
 
